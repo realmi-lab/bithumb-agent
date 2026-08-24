@@ -7556,12 +7556,23 @@ def _codex_device_code_login() -> Dict[str, Any]:
             provider="openai-codex", code="device_code_incomplete",
         )
 
-    # Step 2: Show user the code
+    # Step 2: Show user the code and open the system browser when possible.
+    # The URL remains visible for SSH/headless users and browser-launch errors.
+    verification_url = f"{issuer}/codex/device"
     print("To continue, follow these steps:\n")
     print("  1. Open this URL in your browser:")
-    print(f"     \033[94m{issuer}/codex/device\033[0m\n")
+    print(f"     \033[94m{verification_url}\033[0m\n")
     print("  2. Enter this code:")
     print(f"     \033[94m{user_code}\033[0m\n")
+    if not _is_remote_session() and _can_open_graphical_browser():
+        try:
+            opened = webbrowser.open(verification_url)
+        except Exception:
+            opened = False
+        if opened:
+            print("  (로그인 창을 기본 브라우저에서 열었습니다.)")
+        else:
+            print("  (브라우저를 자동으로 열지 못했습니다. 위 URL을 여세요.)")
     print("Waiting for sign-in... (press Ctrl+C to cancel)")
 
     # Step 3: Poll for authorization code

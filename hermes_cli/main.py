@@ -2475,17 +2475,35 @@ def cmd_chat(args):
         except Exception:
             pass  # never let cwd-restore break a resume
 
-    # First-run guard: Bithumb Agent accepts OAuth only. Do not fall through to
-    # the upstream API-key/custom-endpoint setup wizard.
+    # First run: enter Bithumb Agent's small OAuth shell instead of falling
+    # through to the upstream API-key/custom-endpoint setup wizard. One-shot
+    # input cannot answer an interactive login, so it keeps actionable output.
     if not _has_any_provider_configured():
-        print()
-        print("Bithumb Agent OAuth login is required.")
-        print()
-        print("  ChatGPT/Codex:  bithumb-agent auth add openai-codex")
-        print("  Google/Gemini:  bithumb-agent auth add antigravity-cli")
-        print("  Check status:   bithumb-agent status")
-        print()
-        sys.exit(1)
+        try:
+            interactive_login = (
+                not getattr(args, "query", None)
+                and not getattr(args, "image", None)
+                and sys.stdin.isatty()
+                and sys.stdout.isatty()
+            )
+        except Exception:
+            interactive_login = False
+
+        if interactive_login:
+            from hermes_cli.bithumb_onboarding import run_first_login_shell
+
+            if run_first_login_shell() is None:
+                sys.exit(0)
+        else:
+            print()
+            print("Bithumb Agent OAuth login is required.")
+            print()
+            print("  CLI에서 실행:    /bit gpt  또는  /bit gemini")
+            print("  ChatGPT/Codex:  bithumb-agent auth add openai-codex")
+            print("  Google/Gemini:  bithumb-agent auth add antigravity-cli")
+            print("  Check status:   bithumb-agent status")
+            print()
+            sys.exit(1)
 
     # --ignore-user-config: make load_cli_config() / load_config() skip the
     # user's ~/.hermes/config.yaml and return built-in defaults. Set BEFORE

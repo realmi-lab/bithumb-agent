@@ -8873,6 +8873,21 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin, CLIBillingMixin):
             self._handle_resume_command(cmd_original)
         elif canonical == "sessions":
             self._handle_sessions_command(cmd_original)
+        elif canonical == "bit":
+            from hermes_cli.bithumb_onboarding import handle_bit_command
+
+            try:
+                selected = handle_bit_command(cmd_original)
+                if selected:
+                    _cprint(
+                        f"  {_DIM}새 공급자는 다음 실행부터 적용됩니다. "
+                        f"현재 세션에서 바꾸려면 /model --provider {selected} 를 입력하세요.{_RST}"
+                    )
+            except SystemExit as exc:
+                if exc.code not in {None, 0}:
+                    _cprint(f"  로그인에 실패했습니다: {_escape(str(exc.code))}")
+            except Exception as exc:
+                _cprint(f"  로그인에 실패했습니다: {_escape(str(exc))}")
         elif canonical == "model":
             self._handle_model_switch(cmd_original)
         elif canonical == "codex-runtime":

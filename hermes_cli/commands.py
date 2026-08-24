@@ -131,6 +131,9 @@ COMMAND_REGISTRY: list[CommandDef] = [
     # Configuration
     CommandDef("config", "Show current configuration", "Configuration",
                cli_only=True),
+    CommandDef("bit", "Connect Bithumb Agent to GPT or Gemini OAuth", "Configuration",
+               cli_only=True, args_hint="[gpt|gemini|status]",
+               subcommands=("gpt", "gemini", "status", "help")),
     CommandDef("model", "Switch model (session-scoped; --global to persist)", "Configuration",
                args_hint="[model] [--provider name] [--global|--session] [--refresh]"),
     CommandDef("codex-runtime", "Toggle codex app-server runtime for OpenAI/Codex models",

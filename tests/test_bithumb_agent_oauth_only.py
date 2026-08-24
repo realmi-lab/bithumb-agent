@@ -286,6 +286,98 @@ def test_first_run_guidance_is_bithumb_oauth_only(tmp_path):
     assert "Hermes Setup" not in output
 
 
+@pytest.mark.parametrize(
+    ("command", "provider"),
+    [
+        ("/bit gpt", "openai-codex"),
+        ("/bit gemini", "antigravity-cli"),
+    ],
+)
+def test_bit_login_commands_dispatch_to_reviewed_oauth(command, provider):
+    from hermes_cli.bithumb_onboarding import handle_bit_command
+
+    connected = []
+    output = []
+    selected = handle_bit_command(
+        command,
+        emit=output.append,
+        connector=lambda value: connected.append(value) or value,
+    )
+
+    assert selected == provider
+    assert connected == [provider]
+    assert any("로그인" in line for line in output)
+
+
+def test_first_login_shell_starts_agent_after_bit_login():
+    from hermes_cli.bithumb_onboarding import run_first_login_shell
+
+    commands = iter(["hello", "/bit gpt"])
+    output = []
+    selected = run_first_login_shell(
+        input_fn=lambda _prompt: next(commands),
+        emit=output.append,
+        connector=lambda provider: provider,
+    )
+
+    assert selected == "openai-codex"
+    assert any("/bit gpt" in line for line in output)
+    assert any("/bit gemini" in line for line in output)
+    assert any("사용법" in line for line in output)
+
+
+def test_bit_command_is_registered_for_help_and_completion():
+    from hermes_cli.commands import resolve_command
+
+    command = resolve_command("bit")
+    assert command is not None
+    assert command.subcommands == ("gpt", "gemini", "status", "help")
+
+
+@pytest.mark.parametrize(
+    ("provider", "expected_model"),
+    [
+        ("openai-codex", "gpt-account-default"),
+        ("antigravity-cli", "auto"),
+    ],
+)
+def test_bit_login_selects_provider_and_usable_default(
+    monkeypatch, provider, expected_model
+):
+    import hermes_cli.auth as auth
+    import hermes_cli.auth_commands as auth_commands
+    import hermes_cli.codex_models as codex_models
+    from hermes_cli.bithumb_onboarding import connect_bit_provider
+
+    added = []
+    selected = []
+    monkeypatch.setattr(
+        auth_commands,
+        "auth_add_command",
+        lambda args: added.append(args.provider),
+    )
+    monkeypatch.setattr(
+        auth,
+        "_update_config_for_provider",
+        lambda chosen, base_url, model: selected.append((chosen, base_url, model)),
+    )
+    monkeypatch.setattr(
+        auth,
+        "get_codex_auth_status",
+        lambda: {"api_key": "oauth-token"},
+    )
+    monkeypatch.setattr(
+        codex_models,
+        "get_codex_model_ids",
+        lambda access_token=None: ["gpt-account-default"],
+    )
+
+    assert connect_bit_provider(provider) == provider
+    assert added == [provider]
+    assert selected[0][0] == provider
+    assert selected[0][2] == expected_model
+
+
 def test_agent_import_has_no_removed_delegation_restore_warning():
     result = subprocess.run(
         [sys.executable, "-c", "import run_agent; print('ok')"],
