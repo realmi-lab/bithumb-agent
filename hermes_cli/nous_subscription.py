@@ -12,7 +12,6 @@ from hermes_cli.nous_account import (
     format_nous_portal_entitlement_message,
     get_nous_portal_account_info,
 )
-from tools.managed_tool_gateway import is_managed_tool_gateway_ready
 from utils import is_truthy_value
 from tools.tool_backend_helpers import (
     fal_key_is_configured,
@@ -458,49 +457,16 @@ def get_nous_subscription_features(
         direct_browser_use = False
         direct_browserbase = False
 
-    managed_web_available = (
-        managed_tools_flag
-        and nous_auth_present
-        and is_managed_tool_gateway_ready("firecrawl")
-        and _entitled_for("firecrawl")
-    )
-    managed_image_available = (
-        managed_tools_flag
-        and nous_auth_present
-        and is_managed_tool_gateway_ready("fal-queue")
-        and _entitled_for("fal")
-    )
-    # Video gen rides the same fal-queue gateway as image gen, but the free tool
-    # pool funds image and NOT video — so gate it on its own coverage category
-    # rather than aliasing it to image. (Paid users are entitled to both.)
-    managed_video_available = (
-        managed_tools_flag
-        and nous_auth_present
-        and is_managed_tool_gateway_ready("fal-queue")
-        and _entitled_for("fal-video")
-    )
-    managed_tts_available = (
-        managed_tools_flag
-        and nous_auth_present
-        and is_managed_tool_gateway_ready("openai-audio")
-        and _entitled_for("openai-audio")
-    )
-    # STT and TTS share the same managed gateway endpoint ("openai-audio")
-    # because the OpenAI audio API covers both /audio/speech (TTS) and
-    # /audio/transcriptions (STT). One probe (and one entitlement), used by both.
-    managed_stt_available = managed_tts_available
-    managed_browser_available = (
-        managed_tools_flag
-        and nous_auth_present
-        and is_managed_tool_gateway_ready("browser-use")
-        and _entitled_for("browser-use")
-    )
-    managed_modal_available = (
-        managed_tools_flag
-        and nous_auth_present
-        and is_managed_tool_gateway_ready("modal")
-        and _entitled_for("modal")
-    )
+    # Managed Tool Gateway code is intentionally not distributed. Keep all
+    # compatibility fields fail-closed so dormant upstream UI code cannot
+    # activate a remote gateway path.
+    managed_web_available = False
+    managed_image_available = False
+    managed_video_available = False
+    managed_tts_available = False
+    managed_stt_available = False
+    managed_browser_available = False
+    managed_modal_available = False
     modal_state = resolve_modal_backend_state(
         modal_mode,
         has_direct=direct_modal,

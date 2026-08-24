@@ -21,7 +21,7 @@ Bithumb Agent는 [Hermes Agent](https://github.com/NousResearch/hermes-agent)의
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "git+https://github.com/realmi-lab/bithumb-agent.git@v0.19.0.post2"
+python -m pip install "git+https://github.com/realmi-lab/bithumb-agent.git@v0.19.0.post3"
 ```
 
 설치 후 실행합니다.

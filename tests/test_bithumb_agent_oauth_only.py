@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -196,6 +197,15 @@ def test_bithumb_agent_tool_policy_is_fail_closed():
 
     blocked = json.loads(model_tools.handle_function_call("web_search", {"query": "x"}))
     assert "disabled by Bithumb Agent security policy" in blocked["error"]
+
+
+def test_managed_tool_gateway_is_not_distributed():
+    project_root = Path(__file__).resolve().parents[1]
+    assert not (project_root / "tools" / "managed_tool_gateway.py").exists()
+
+    from tools.tool_backend_helpers import managed_nous_tools_enabled
+
+    assert managed_nous_tools_enabled() is False
 
 
 def test_antigravity_runtime_is_external_process_oauth(monkeypatch):
