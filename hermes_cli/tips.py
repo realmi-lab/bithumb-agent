@@ -475,11 +475,30 @@ TIPS = [
 ]
 
 
+BITHUMB_AGENT_TIPS = [
+    "/bit gpt opens the ChatGPT/Codex OAuth login in your browser.",
+    "/bit gemini opens the official Google Antigravity OAuth login.",
+    "/bit status checks both OAuth login states.",
+    "/model switches between your connected GPT and Gemini providers.",
+    "/help lists the commands available in this coding-only distribution.",
+    "/rollback lists filesystem checkpoints created before file changes.",
+    "/retry resends your last message.",
+    "/undo removes the last user and assistant exchange.",
+    "@file:path/to/file.py injects a file directly into your message.",
+    "@diff injects your current unstaged Git changes.",
+    "Alt+Enter inserts a newline for multi-line input.",
+    "Tab completes Bithumb Agent slash commands.",
+    "Ctrl+C interrupts the current agent turn.",
+    "The search_files tool uses ripgrep for fast workspace searches.",
+    "The todo tool helps track multi-step coding work.",
+]
+
+
 def get_random_tip(exclude_recent: int = 0) -> str:
-    """Return a random tip string.
+    """Return a reviewed Bithumb Agent coding tip.
 
     Args:
         exclude_recent: not used currently; reserved for future
             deduplication across sessions.
     """
-    return random.choice(TIPS)
+    return random.choice(BITHUMB_AGENT_TIPS)

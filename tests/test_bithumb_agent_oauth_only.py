@@ -378,6 +378,42 @@ def test_bit_login_selects_provider_and_usable_default(
     assert selected[0][2] == expected_model
 
 
+def test_cli_callback_installation_tolerates_removed_skills_tool(monkeypatch):
+    """The coding-only wheel must start without the excluded skills module."""
+    import builtins
+
+    pytest.importorskip("prompt_toolkit")
+    import cli
+
+    original_import = builtins.__import__
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "tools.skills_tool":
+            raise ModuleNotFoundError("No module named 'tools.skills_tool'")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    assert cli.set_secret_capture_callback(lambda *_args: None) is None
+
+
+def test_startup_tips_do_not_advertise_removed_or_api_key_features():
+    from hermes_cli.tips import BITHUMB_AGENT_TIPS
+
+    joined = "\n".join(BITHUMB_AGENT_TIPS).lower()
+    for forbidden in (
+        "hermes",
+        "api key",
+        "gateway",
+        "mcp",
+        "plugin",
+        "skill install",
+        "browser tool",
+        "cron",
+        "yolo",
+    ):
+        assert forbidden not in joined
+
+
 def test_agent_import_has_no_removed_delegation_restore_warning():
     result = subprocess.run(
         [sys.executable, "-c", "import run_agent; print('ok')"],

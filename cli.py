@@ -961,8 +961,19 @@ def set_approval_callback(*args, **kwargs):
 
 
 def set_secret_capture_callback(*args, **kwargs):
-    from tools.skills_tool import set_secret_capture_callback as _set_secret_capture_callback
+    """Register the skill-secret callback when the optional skill tool exists.
 
+    Bithumb Agent's coding-only wheel deliberately does not distribute
+    ``tools.skills_tool``.  Callback installation is part of every normal CLI
+    startup, so importing that removed module here made an otherwise healthy
+    wheel crash immediately after drawing the banner.
+    """
+    try:
+        from tools.skills_tool import (
+            set_secret_capture_callback as _set_secret_capture_callback,
+        )
+    except ImportError:
+        return None
     return _set_secret_capture_callback(*args, **kwargs)
 
 
