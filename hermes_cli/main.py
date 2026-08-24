@@ -2475,85 +2475,17 @@ def cmd_chat(args):
         except Exception:
             pass  # never let cwd-restore break a resume
 
-    # xAI retirement warning — one-shot, non-blocking, never fails startup
-    try:
-        from hermes_cli.xai_retirement import (
-            MIGRATION_GUIDE_URL,
-            RETIREMENT_DATE,
-            find_retired_xai_refs,
-            format_issue,
-        )
-        from hermes_cli.config import load_config as _load_config_for_xai_check
-
-        _retired_xai_refs = find_retired_xai_refs(_load_config_for_xai_check())
-        if _retired_xai_refs:
-            sys.stderr.write(
-                f"\033[33m⚠ xAI retires {len(_retired_xai_refs)} model(s) "
-                f"in your config on {RETIREMENT_DATE}:\033[0m\n"
-            )
-            for _ref in _retired_xai_refs:
-                sys.stderr.write(f"  \033[33m⚠\033[0m {format_issue(_ref)}\n")
-            sys.stderr.write(f"  \033[2mMigration guide: {MIGRATION_GUIDE_URL}\033[0m\n")
-            sys.stderr.write("  \033[2mRun 'hermes doctor' for details.\033[0m\n\n")
-    except Exception:
-        pass
-
-    # First-run guard: check if any provider is configured before launching
+    # First-run guard: Bithumb Agent accepts OAuth only. Do not fall through to
+    # the upstream API-key/custom-endpoint setup wizard.
     if not _has_any_provider_configured():
         print()
-        print(
-            "It looks like Hermes isn't configured yet -- no API keys or providers found."
-        )
+        print("Bithumb Agent OAuth login is required.")
         print()
-        print("  Run:  hermes setup")
+        print("  ChatGPT/Codex:  bithumb-agent auth add openai-codex")
+        print("  Google/Gemini:  bithumb-agent auth add antigravity-cli")
+        print("  Check status:   bithumb-agent status")
         print()
-
-        from hermes_cli.setup import (
-            is_interactive_stdin,
-            print_noninteractive_setup_guidance,
-        )
-
-        if not is_interactive_stdin():
-            print_noninteractive_setup_guidance(
-                "No interactive TTY detected for the first-run setup prompt."
-            )
-            sys.exit(1)
-
-        try:
-            reply = input("Run setup now? [Y/n] ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            reply = "n"
-        if reply in {"", "y", "yes"}:
-            cmd_setup(args)
-            return
-        print()
-        print("You can run 'hermes setup' at any time to configure.")
         sys.exit(1)
-
-    # Start update check in background (runs while other init happens).
-    # On Termux this imports rich/prompt_toolkit in the foreground and then
-    # competes for CPU on single-core devices, so keep it opt-in there.
-    if _termux_should_prefetch_update_check():
-        try:
-            from hermes_cli.banner import prefetch_update_check
-
-            prefetch_update_check()
-        except Exception:
-            pass
-
-    # Sync bundled skills on every CLI launch (fast -- skips unchanged skills)
-    try:
-        _sync_bundled_skills_for_startup()
-    except Exception:
-        pass
-
-    # --yolo: bypass all dangerous command approvals.
-    # Also set in main() before _prepare_agent_startup() — that is the
-    # authoritative site because it runs before tool imports freeze
-    # _YOLO_MODE_FROZEN.  This redundant set is a safety net for callers
-    # that invoke cmd_chat directly (e.g. subcommand dispatch).
-    if getattr(args, "yolo", False):
-        os.environ["HERMES_YOLO_MODE"] = "1"
 
     # --ignore-user-config: make load_cli_config() / load_config() skip the
     # user's ~/.hermes/config.yaml and return built-in defaults. Set BEFORE
@@ -13330,9 +13262,16 @@ def main():
     # Bithumb Agent is always launched in its coding-only posture.  Apply this before
     # update recovery, plugin/MCP discovery, tool imports, or any TUI/dashboard
     # startup so a user config or alternate entry path cannot widen it.
-    from hermes_cli.bithumb_agent_policy import apply_runtime_lockdown
+    from hermes_cli.bithumb_agent_policy import apply_runtime_lockdown, validate_cli_argv
 
     apply_runtime_lockdown()
+
+    # Keep the boundary fail-closed for direct module callers that bypass the
+    # generated console entry point.
+    _policy_error = validate_cli_argv(sys.argv[1:])
+    if _policy_error:
+        print(_policy_error, file=sys.stderr)
+        return 2
 
     # Cosmetic: make the process show up as 'hermes' instead of 'python3.11'
     # in ps/top/htop.  Non-fatal — just a nicer UX.
@@ -15265,7 +15204,13 @@ def main():
     # so introspection/management commands (hermes hooks list, cron
     # list, gateway status, mcp add, ...) don't pay discovery cost or
     # trigger consent prompts for hooks the user is still inspecting.
-    _prepare_agent_startup(args)
+    # Bithumb Agent does not merely hide integration tools from the model: it
+    # skips their plugin/MCP/shell-hook initialization entirely.  This guard is
+    # constant and fail-closed in the distribution policy module.
+    from hermes_cli.bithumb_agent_policy import integration_startup_is_allowed
+
+    if integration_startup_is_allowed():
+        _prepare_agent_startup(args)
 
     # Handle top-level --oneshot / -z: single-shot mode, stdout = final
     # response only, nothing else. Bypasses cli.py entirely.

@@ -21,7 +21,7 @@ Bithumb Agent는 [Hermes Agent](https://github.com/NousResearch/hermes-agent)의
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "git+https://github.com/realmi-lab/bithumb-agent.git@v0.19.0.post3"
+python -m pip install "git+https://github.com/realmi-lab/bithumb-agent.git@v0.19.0.post4"
 ```
 
 설치 후 실행합니다.
@@ -59,13 +59,19 @@ git clone https://github.com/realmi-lab/bithumb-agent.git
 cd bithumb-agent
 python3 -m venv .venv
 source .venv/bin/activate
+python -m pip install -r requirements.txt
 python -m pip install -e .
 bithumb-agent
 ```
 
+`requirements.txt`는 일반 실행에 필요한 직접 의존성을 담고 있으며
+`pyproject.toml`의 핵심 의존성 목록과 테스트로 동기화됩니다. 일반적인
+Git/PyPI 설치에서는 pip가 `pyproject.toml`을 읽으므로 별도로 실행할 필요가
+없습니다.
+
 ## 보안 범위
 
-외부 에이전트 도구는 터미널/프로세스 관리, 파일 읽기·쓰기·패치·검색, 로컬 코드 실행, 작업 계획 및 확인 기능으로 제한됩니다. 플러그인, MCP 서버, 브라우저/웹 도구, 미디어 생성, TTS, 장기 메모리, 위임, cron, 컴퓨터 제어, 메시징 도구 등은 비활성화됩니다.
+외부 에이전트 도구는 터미널/프로세스 관리, 파일 읽기·쓰기·패치·검색, 로컬 코드 실행, 작업 계획 및 확인 기능으로 제한됩니다. 플러그인, MCP 서버, 브라우저/웹 도구, 미디어 생성, TTS, 장기 메모리, 위임, cron, 컴퓨터 제어, 메시징 도구, 셸 훅 및 승인 우회 모드는 비활성화됩니다. 관련 CLI 명령은 상위 런타임을 불러오기 전에 거부됩니다.
 
 기업 또는 금융권 검토 전에는 [SECURITY_REVIEW.md](SECURITY_REVIEW.md)를 확인하세요. 저장소에는 비활성화된 Hermes 상류 구현 일부가 남아 있으며, 외부 `agy` 바이너리의 기능은 물리적으로 제거하는 대신 런타임에서 제한합니다.
 

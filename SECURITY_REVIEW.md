@@ -45,6 +45,8 @@ Disabled startup surfaces:
 - MCP server discovery
 - shell hooks
 - background version/update checks
+- upstream dashboard, tools configurator, doctor, and TUI command surfaces
+- approval-bypass oneshot and `--yolo` modes
 - bundled skills at model runtime
 - web search, browser automation, vision, image/video generation, TTS, memory,
   session search, delegation, cron, computer use, smart-home, music, and
@@ -107,7 +109,8 @@ Explicitly blocked or disabled destinations/surfaces:
 - Bing Edge TTS and all image/video/web-search providers
 - messaging gateways, remote MCP servers, and imported plugins
 
-The dashboard, when used, listens only on `127.0.0.1:9119`.
+The upstream dashboard command is rejected before the upstream CLI module is
+imported and is not part of the Bithumb Agent runtime surface.
 
 ## Residual risks requiring an approval decision
 

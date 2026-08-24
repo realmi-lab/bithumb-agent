@@ -1,0 +1,23 @@
+# Direct runtime dependencies. Keep this file in exact sync with
+# [project].dependencies in pyproject.toml; the test suite enforces it.
+openai==2.24.0
+certifi==2026.5.20
+python-dotenv==1.2.2
+fire==0.7.1
+httpx[socks]==0.28.1
+rich==14.3.3
+tenacity==9.1.4
+pyyaml==6.0.3
+ruamel.yaml==0.18.17
+requests==2.33.0
+jinja2==3.1.6
+pydantic==2.13.4
+prompt_toolkit==3.0.52
+packaging==26.0
+urllib3>=2.7.0,<3
+tzdata==2025.3; sys_platform == 'win32'
+psutil==7.2.2
+ptyprocess>=0.7.0,<1; sys_platform != 'win32'
+pywinpty>=2.0.0,<3; sys_platform == 'win32'
+Pillow==12.2.0
+concurrent-log-handler==0.9.29; sys_platform == 'win32'

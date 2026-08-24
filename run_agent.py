@@ -3636,12 +3636,7 @@ class AIAgent:
         except Exception:
             pass
 
-        # 3. Clean browser daemon sessions
-        try:
-        except Exception:
-            pass
-
-        # 4. Close active child agents
+        # 3. Close active child agents
         try:
             with self._active_children_lock:
                 children = list(self._active_children)
@@ -3654,7 +3649,7 @@ class AIAgent:
         except Exception:
             pass
 
-        # 5. Close the OpenAI/httpx client
+        # 4. Close the OpenAI/httpx client
         try:
             client = getattr(self, "client", None)
             if client is not None:
@@ -3663,7 +3658,7 @@ class AIAgent:
         except Exception:
             pass
 
-        # 6. Free conversation history.  Mirrors _release_evicted_agent_soft's
+        # 5. Free conversation history.  Mirrors _release_evicted_agent_soft's
         # soft-eviction clear — close() is the hard teardown for true session
         # boundaries (/new, /reset, session expiry), so the message list won't
         # be reused.  Drops the reference proactively rather than waiting for

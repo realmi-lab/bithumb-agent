@@ -65,16 +65,46 @@ ALLOWED_CLI_COMMANDS = frozenset(
         "auth",
         "status",
         "config",
-        "tools",
         "sessions",
-        "doctor",
         "security",
         "checkpoints",
         "version",
         "logs",
         "prompt-size",
-        "dashboard",
         "completion",
+    }
+)
+
+# These upstream switches widen execution beyond the reviewed coding surface.
+# Reject them before importing the full upstream CLI so they cannot initialize
+# plugins, skills, shell hooks, or approval-bypass state as a side effect.
+FORBIDDEN_CLI_FLAGS = frozenset(
+    {
+        "-s",
+        "--skills",
+        "--accept-hooks",
+        "--yolo",
+        "-z",
+        "--oneshot",
+        "--tui",
+        "--tui-dev",
+    }
+)
+
+_CLI_VALUE_FLAGS = frozenset(
+    {
+        "-m",
+        "--model",
+        "--provider",
+        "-t",
+        "--toolsets",
+        "-r",
+        "--resume",
+        "-c",
+        "--continue",
+        "--usage-file",
+        "-p",
+        "--profile",
     }
 )
 
@@ -119,6 +149,57 @@ def cli_command_is_allowed(name: Optional[str]) -> bool:
     """Return whether a top-level CLI command belongs to the coding surface."""
 
     return name in ALLOWED_CLI_COMMANDS
+
+
+def validate_cli_argv(argv: Iterable[str]) -> Optional[str]:
+    """Return a fail-closed error for a forbidden flag or command.
+
+    This lightweight check runs in the console entry module before the large
+    upstream command graph is imported.  It is intentionally conservative:
+    Bithumb Agent accepts prompts through ``chat -q`` or the interactive
+    prompt, not as unknown top-level command names.
+    """
+
+    items = [str(value) for value in argv]
+    for item in items:
+        flag = item.split("=", 1)[0]
+        if flag in FORBIDDEN_CLI_FLAGS or (
+            len(flag) > 2 and flag[:2] in {"-s", "-z"}
+        ):
+            return f"Option {flag!r} is disabled by the Bithumb Agent coding-only security policy."
+
+    index = 0
+    while index < len(items):
+        item = items[index]
+        if item == "--":
+            command = items[index + 1] if index + 1 < len(items) else None
+            break
+        if item.startswith("-"):
+            if "=" not in item and item in _CLI_VALUE_FLAGS and index + 1 < len(items):
+                index += 2
+            else:
+                index += 1
+            continue
+        command = item
+        break
+    else:
+        command = None
+
+    if command == "help":
+        return None
+    if not cli_command_is_allowed(command):
+        return f"Command {command!r} is disabled by the Bithumb Agent coding-only security policy."
+    return None
+
+
+def integration_startup_is_allowed() -> bool:
+    """Whether plugin, MCP, and shell-hook startup may run.
+
+    The answer is deliberately constant rather than configuration-driven so
+    no user or project file can widen the distributed Bithumb Agent runtime.
+    """
+
+    return False
 
 _ALIASES = {
     "chatgpt": "openai-codex",

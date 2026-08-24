@@ -1,11 +1,21 @@
-graft skills
 graft locales
-# Bundled plugin manifests (plugin.yaml / plugin.yml). Without these the
-# PluginManager scan (hermes_cli/plugins.py) finds zero plugins on installs
-# built from the sdist (e.g. Homebrew, downstream packagers). package-data
-# below covers the wheel; this covers the sdist. See #34034 / #28149.
-recursive-include plugins plugin.yaml plugin.yml
-# Gateway assets include images plus YAML catalogs such as status_phrases.yaml.
-recursive-include gateway/assets *
+include requirements.txt
+include SECURITY_REVIEW.md
+prune tests
+prune skills
+prune gateway
+prune cron
+prune plugins
+prune tui_gateway
+prune acp_adapter
+prune hermes_cli/dashboard_auth
+prune hermes_cli/proxy
+prune hermes_cli/scripts
+prune hermes_cli/tui_dist
+prune hermes_cli/web_dist
+exclude batch_runner.py
+exclude mcp_serve.py
+exclude toolset_distributions.py
+exclude trajectory_compressor.py
 global-exclude __pycache__
 global-exclude *.py[cod]

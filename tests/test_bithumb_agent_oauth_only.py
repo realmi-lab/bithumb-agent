@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -12,6 +15,7 @@ from hermes_cli.bithumb_agent_policy import (
     BithumbAgentProviderError,
     normalize_provider,
     reject_api_credentials,
+    validate_cli_argv,
 )
 
 
@@ -206,6 +210,95 @@ def test_managed_tool_gateway_is_not_distributed():
     from tools.tool_backend_helpers import managed_nous_tools_enabled
 
     assert managed_nous_tools_enabled() is False
+
+
+@pytest.mark.parametrize("command", ["tools", "doctor", "dashboard", "gateway", "mcp", "cron"])
+def test_integration_cli_commands_are_rejected_before_dispatch(command):
+    error = validate_cli_argv([command, "--help"])
+    assert error is not None
+    assert "disabled by the Bithumb Agent" in error
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--yolo"],
+        ["--accept-hooks"],
+        ["--skills", "anything"],
+        ["-s", "anything"],
+        ["--oneshot", "prompt"],
+        ["-z", "prompt"],
+        ["-zprompt"],
+        ["--tui"],
+        ["--tui-dev"],
+    ],
+)
+def test_integration_and_approval_bypass_flags_are_rejected(argv):
+    assert validate_cli_argv(argv) is not None
+
+
+def test_reviewed_cli_commands_remain_available():
+    for argv in (
+        [],
+        ["chat", "-q", "hello"],
+        ["auth", "status", "openai-codex"],
+        ["--provider", "openai-codex", "status"],
+        ["--profile", "work", "sessions", "list"],
+    ):
+        assert validate_cli_argv(argv) is None
+
+
+def test_integration_startup_is_permanently_disabled():
+    from hermes_cli.bithumb_agent_policy import integration_startup_is_allowed
+
+    assert integration_startup_is_allowed() is False
+
+
+def test_first_run_guidance_is_bithumb_oauth_only(tmp_path):
+    environment = os.environ.copy()
+    environment["HERMES_HOME"] = str(tmp_path / "isolated-home")
+    for name in (
+        "OPENAI_API_KEY",
+        "OPENROUTER_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GOOGLE_API_KEY",
+        "GEMINI_API_KEY",
+    ):
+        environment.pop(name, None)
+
+    result = subprocess.run(
+        [sys.executable, "-m", "hermes_cli.bithumb_agent_entry", "chat", "-q", "test"],
+        cwd=Path(__file__).resolve().parents[1],
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    output = result.stdout + result.stderr
+
+    assert result.returncode == 1
+    assert "Bithumb Agent OAuth login is required" in output
+    assert "bithumb-agent auth add openai-codex" in output
+    assert "bithumb-agent auth add antigravity-cli" in output
+    assert "OPENROUTER_API_KEY" not in output
+    assert "custom endpoint" not in output.lower()
+    assert "Hermes Setup" not in output
+
+
+def test_agent_import_has_no_removed_delegation_restore_warning():
+    result = subprocess.run(
+        [sys.executable, "-c", "import run_agent; print('ok')"],
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "ok"
+    assert "async delegation" not in result.stderr.lower()
 
 
 def test_antigravity_runtime_is_external_process_oauth(monkeypatch):
