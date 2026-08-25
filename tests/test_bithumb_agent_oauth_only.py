@@ -5,7 +5,11 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 from types import SimpleNamespace
+from urllib.error import HTTPError
+from urllib.parse import parse_qs, urlparse
+from urllib.request import urlopen
 
 import pytest
 
@@ -356,6 +360,7 @@ def test_bit_login_selects_provider_and_usable_default(
         "auth_add_command",
         lambda args: added.append(args.provider),
     )
+    monkeypatch.setattr(auth, "reuse_codex_login_if_available", lambda: False)
     monkeypatch.setattr(
         auth,
         "_update_config_for_provider",
@@ -376,6 +381,175 @@ def test_bit_login_selects_provider_and_usable_default(
     assert added == [provider]
     assert selected[0][0] == provider
     assert selected[0][2] == expected_model
+
+
+def test_codex_browser_authorize_url_matches_official_pkce_shape():
+    import hermes_cli.auth as auth
+
+    url = auth._codex_build_authorize_url(
+        redirect_uri="http://localhost:1455/auth/callback",
+        code_challenge="challenge-value",
+        state="state-value",
+    )
+    parsed = urlparse(url)
+    query = parse_qs(parsed.query)
+
+    assert parsed.scheme == "https"
+    assert parsed.netloc == "auth.openai.com"
+    assert parsed.path == "/oauth/authorize"
+    assert query["client_id"] == [auth.CODEX_OAUTH_CLIENT_ID]
+    assert query["redirect_uri"] == ["http://localhost:1455/auth/callback"]
+    assert query["code_challenge"] == ["challenge-value"]
+    assert query["code_challenge_method"] == ["S256"]
+    assert query["state"] == ["state-value"]
+    assert query["scope"] == [auth.CODEX_OAUTH_SCOPE]
+    assert query["id_token_add_organizations"] == ["true"]
+    assert query["codex_cli_simplified_flow"] == ["true"]
+
+
+def test_codex_callback_accepts_code_and_rejects_wrong_state():
+    import hermes_cli.auth as auth
+
+    handler, result = auth._make_codex_callback_handler(
+        "/auth/callback", "expected-state"
+    )
+    server = auth.HTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.handle_request, daemon=True)
+    thread.start()
+    port = server.server_address[1]
+    with pytest.raises(HTTPError) as error:
+        urlopen(
+            f"http://127.0.0.1:{port}/auth/callback?code=secret&state=wrong",
+            timeout=2,
+        )
+    thread.join(timeout=2)
+    server.server_close()
+    assert error.value.code == 400
+    assert result["code"] is None
+    assert result["error"] == "state_mismatch"
+
+    handler, result = auth._make_codex_callback_handler(
+        "/auth/callback", "expected-state"
+    )
+    server = auth.HTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.handle_request, daemon=True)
+    thread.start()
+    port = server.server_address[1]
+    with urlopen(
+        f"http://127.0.0.1:{port}/auth/callback?code=secret&state=expected-state",
+        timeout=2,
+    ) as response:
+        assert response.status == 200
+    thread.join(timeout=2)
+    server.server_close()
+    assert result["code"] == "secret"
+    assert result["error"] is None
+
+
+def test_codex_browser_exchange_uses_pkce_and_keeps_tokens_private(monkeypatch):
+    import hermes_cli.auth as auth
+
+    captured = {}
+
+    class Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {
+                "access_token": "access-secret",
+                "refresh_token": "refresh-secret",
+                "id_token": "id-secret",
+            }
+
+    def fake_post(url, **kwargs):
+        captured["url"] = url
+        captured.update(kwargs)
+        return Response()
+
+    monkeypatch.setattr(auth.httpx, "post", fake_post)
+    creds = auth._codex_exchange_browser_code(
+        code="authorization-secret",
+        redirect_uri="http://localhost:1455/auth/callback",
+        code_verifier="verifier-secret",
+    )
+
+    assert captured["url"] == auth.CODEX_OAUTH_TOKEN_URL
+    assert captured["data"] == {
+        "grant_type": "authorization_code",
+        "code": "authorization-secret",
+        "redirect_uri": "http://localhost:1455/auth/callback",
+        "client_id": auth.CODEX_OAUTH_CLIENT_ID,
+        "code_verifier": "verifier-secret",
+    }
+    assert creds["source"] == "loopback-pkce"
+    assert creds["tokens"]["access_token"] == "access-secret"
+
+
+def test_codex_browser_login_completes_through_local_callback(monkeypatch):
+    import hermes_cli.auth as auth
+
+    exchanged = {}
+
+    def fake_open(authorize_url):
+        query = parse_qs(urlparse(authorize_url).query)
+        callback = (
+            f'{query["redirect_uri"][0]}?code=browser-code&state={query["state"][0]}'
+        )
+
+        def send_callback():
+            with urlopen(callback, timeout=2) as response:
+                assert response.status == 200
+
+        threading.Thread(target=send_callback, daemon=True).start()
+        return True
+
+    def fake_exchange(**kwargs):
+        exchanged.update(kwargs)
+        return {"source": "loopback-pkce", "tokens": {"access_token": "token"}}
+
+    monkeypatch.setattr(auth.webbrowser, "open", fake_open)
+    monkeypatch.setattr(auth, "_codex_exchange_browser_code", fake_exchange)
+    creds = auth._codex_browser_login(timeout_seconds=3)
+
+    assert creds["source"] == "loopback-pkce"
+    assert exchanged["code"] == "browser-code"
+    assert exchanged["redirect_uri"] in {
+        "http://localhost:1455/auth/callback",
+        "http://localhost:1457/auth/callback",
+    }
+    assert exchanged["code_verifier"]
+
+
+def test_codex_login_uses_browser_locally_and_device_code_remotely(monkeypatch):
+    import hermes_cli.auth as auth
+
+    monkeypatch.setattr(auth, "_is_remote_session", lambda: False)
+    monkeypatch.setattr(auth, "_can_open_graphical_browser", lambda: True)
+    monkeypatch.setattr(auth, "_codex_browser_login", lambda: {"source": "browser"})
+    monkeypatch.setattr(auth, "_codex_device_code_login", lambda: {"source": "device"})
+    assert auth._codex_login_for_environment() == {"source": "browser"}
+
+    monkeypatch.setattr(auth, "_is_remote_session", lambda: True)
+    assert auth._codex_login_for_environment() == {"source": "device"}
+
+
+def test_bit_gpt_reuses_official_codex_login_without_new_oauth(monkeypatch):
+    import hermes_cli.auth as auth
+    import hermes_cli.auth_commands as auth_commands
+    from hermes_cli.bithumb_onboarding import connect_bit_provider
+
+    added = []
+    monkeypatch.setattr(auth, "reuse_codex_login_if_available", lambda: True)
+    monkeypatch.setattr(auth_commands, "auth_add_command", lambda args: added.append(args))
+    monkeypatch.setattr(auth, "_update_config_for_provider", lambda *args: None)
+    monkeypatch.setattr(auth, "get_codex_auth_status", lambda: {"api_key": "token"})
+    monkeypatch.setattr(
+        "hermes_cli.codex_models.get_codex_model_ids", lambda access_token=None: ["gpt-5.4"]
+    )
+
+    assert connect_bit_provider("openai-codex") == "openai-codex"
+    assert added == []
 
 
 def test_cli_callback_installation_tolerates_removed_skills_tool(monkeypatch):

@@ -23,6 +23,7 @@ import logging
 import os
 import shutil
 import shlex
+import secrets
 import ssl
 import stat
 import sys
@@ -101,12 +102,19 @@ DEFAULT_OLLAMA_CLOUD_BASE_URL = "https://ollama.com/v1"
 STEPFUN_STEP_PLAN_INTL_BASE_URL = "https://api.stepfun.ai/step_plan/v1"
 STEPFUN_STEP_PLAN_CN_BASE_URL = "https://api.stepfun.com/step_plan/v1"
 CODEX_OAUTH_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
+CODEX_OAUTH_ISSUER = "https://auth.openai.com"
+CODEX_OAUTH_AUTHORIZE_URL = f"{CODEX_OAUTH_ISSUER}/oauth/authorize"
 CODEX_OAUTH_TOKEN_URL = "https://auth.openai.com/oauth/token"
+CODEX_OAUTH_SCOPE = (
+    "openid profile email offline_access "
+    "api.connectors.read api.connectors.invoke"
+)
+CODEX_OAUTH_CALLBACK_PORTS = (1455, 1457)
 try:  # Version tag for the Codex token-endpoint User-Agent; fall back if unavailable.
-    from hermes_cli import __version__ as _HERMES_CLI_VERSION
+    from hermes_cli import __version__ as _BITHUMB_AGENT_VERSION
 except Exception:  # pragma: no cover - version import should always succeed
-    _HERMES_CLI_VERSION = "unknown"
-CODEX_OAUTH_USER_AGENT = f"hermes-cli/{_HERMES_CLI_VERSION}"
+    _BITHUMB_AGENT_VERSION = "unknown"
+CODEX_OAUTH_USER_AGENT = f"bithumb-agent/{_BITHUMB_AGENT_VERSION}"
 CODEX_ACCESS_TOKEN_REFRESH_SKEW_SECONDS = 120
 XAI_OAUTH_ISSUER = "https://auth.x.ai"
 XAI_OAUTH_DISCOVERY_URL = f"{XAI_OAUTH_ISSUER}/.well-known/openid-configuration"
@@ -7159,7 +7167,7 @@ def _login_openai_codex(
     *,
     force_new_login: bool = False,
 ) -> None:
-    """OpenAI Codex login via device code flow. Tokens stored in ~/.hermes/auth.json."""
+    """OpenAI Codex login via browser PKCE, with device code for headless hosts."""
 
     del args, pconfig  # kept for parity with other provider login helpers
 
@@ -7209,13 +7217,13 @@ def _login_openai_codex(
                 print(f"  Config updated: {config_path} (model.provider=openai-codex)")
                 return
 
-    # Run a fresh device code flow — Hermes gets its own OAuth session
+    # Run a fresh OAuth flow — Bithumb Agent gets its own OAuth session.
     print()
     print("Signing in to OpenAI Codex...")
-    print("(Hermes creates its own session — won't affect Codex CLI or VS Code)")
+    print("(Bithumb Agent creates its own session — won't affect Codex CLI or VS Code)")
     print()
 
-    creds = _codex_device_code_login()
+    creds = _codex_login_for_environment()
 
     # Save tokens to Hermes auth store
     _save_codex_tokens(creds["tokens"], creds.get("last_refresh"))
@@ -7480,11 +7488,265 @@ def _xai_oauth_device_code_login(
     }
 
 
+def _codex_build_authorize_url(
+    *, redirect_uri: str, code_challenge: str, state: str
+) -> str:
+    """Build the browser OAuth URL used by the official Codex localhost flow."""
+    query = urlencode(
+        {
+            "response_type": "code",
+            "client_id": CODEX_OAUTH_CLIENT_ID,
+            "redirect_uri": redirect_uri,
+            "scope": CODEX_OAUTH_SCOPE,
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
+            "id_token_add_organizations": "true",
+            "codex_cli_simplified_flow": "true",
+            "state": state,
+            "originator": "codex_cli_rs",
+        }
+    )
+    return f"{CODEX_OAUTH_AUTHORIZE_URL}?{query}"
+
+
+def _make_codex_callback_handler(
+    expected_path: str, expected_state: str
+) -> tuple[type[BaseHTTPRequestHandler], dict[str, Any]]:
+    """Create a loopback-only callback handler without logging query secrets."""
+    result: dict[str, Any] = {
+        "code": None,
+        "error": None,
+        "error_description": None,
+    }
+
+    class _CodexCallbackHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            parsed = urlparse(self.path)
+            if parsed.path != expected_path:
+                self.send_response(404)
+                self.end_headers()
+                return
+
+            params = parse_qs(parsed.query)
+            callback_state = str(params.get("state", [""])[0] or "")
+            if not secrets.compare_digest(callback_state, expected_state):
+                result["error"] = "state_mismatch"
+                status = 400
+                body = (
+                    "<html><body><h1>Bithumb Agent login was rejected.</h1>"
+                    "<p>OAuth state did not match. You can close this tab.</p>"
+                    "</body></html>"
+                )
+            else:
+                result["code"] = params.get("code", [None])[0]
+                result["error"] = params.get("error", [None])[0]
+                result["error_description"] = params.get(
+                    "error_description", [None]
+                )[0]
+                status = 200
+                if result["error"]:
+                    body = (
+                        "<html><body><h1>Bithumb Agent login failed.</h1>"
+                        "<p>Return to the terminal and try again.</p>"
+                        "</body></html>"
+                    )
+                else:
+                    body = (
+                        "<html><body><h1>Bithumb Agent login complete.</h1>"
+                        "<p>You can close this tab and return to the terminal.</p>"
+                        "</body></html>"
+                    )
+
+            encoded = body.encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+
+        def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
+            return
+
+    return _CodexCallbackHandler, result
+
+
+def _codex_bind_callback_server(
+    *, state: str
+) -> tuple[HTTPServer, dict[str, Any], str]:
+    """Bind the registered Codex callback ports on loopback only."""
+    last_error: Optional[OSError] = None
+    for port in CODEX_OAUTH_CALLBACK_PORTS:
+        redirect_uri = f"http://localhost:{port}/auth/callback"
+        handler, result = _make_codex_callback_handler("/auth/callback", state)
+
+        class _ReuseHTTPServer(HTTPServer):
+            allow_reuse_address = True
+
+        try:
+            server = _ReuseHTTPServer(("127.0.0.1", port), handler)
+            return server, result, redirect_uri
+        except OSError as exc:
+            last_error = exc
+    raise AuthError(
+        "Could not open the local Codex OAuth callback on ports 1455 or 1457.",
+        provider="openai-codex",
+        code="codex_callback_bind_failed",
+    ) from last_error
+
+
+def _codex_exchange_browser_code(
+    *, code: str, redirect_uri: str, code_verifier: str
+) -> Dict[str, Any]:
+    """Exchange a localhost OAuth authorization code without exposing secrets."""
+    try:
+        response = httpx.post(
+            CODEX_OAUTH_TOKEN_URL,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+                "User-Agent": CODEX_OAUTH_USER_AGENT,
+            },
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": redirect_uri,
+                "client_id": CODEX_OAUTH_CLIENT_ID,
+                "code_verifier": code_verifier,
+            },
+            timeout=httpx.Timeout(20.0),
+        )
+    except Exception as exc:
+        raise AuthError(
+            f"Codex token exchange failed: {exc}",
+            provider="openai-codex",
+            code="token_exchange_failed",
+        ) from exc
+    if response.status_code != 200:
+        raise AuthError(
+            f"Codex token exchange returned status {response.status_code}.",
+            provider="openai-codex",
+            code="token_exchange_error",
+        )
+    payload = response.json()
+    access_token = str(payload.get("access_token") or "").strip()
+    refresh_token = str(payload.get("refresh_token") or "").strip()
+    if not access_token or not refresh_token:
+        raise AuthError(
+            "Codex token exchange did not return access and refresh tokens.",
+            provider="openai-codex",
+            code="token_exchange_incomplete",
+        )
+    return {
+        "tokens": {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "id_token": str(payload.get("id_token") or "").strip(),
+        },
+        "base_url": (
+            os.getenv("HERMES_CODEX_BASE_URL", "").strip().rstrip("/")
+            or DEFAULT_CODEX_BASE_URL
+        ),
+        "last_refresh": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "auth_mode": "chatgpt",
+        "source": "loopback-pkce",
+    }
+
+
+def _codex_browser_login(*, timeout_seconds: float = 300.0) -> Dict[str, Any]:
+    """Run standalone browser OAuth through a short-lived localhost callback."""
+    code_verifier = _oauth_pkce_code_verifier()
+    code_challenge = _oauth_pkce_code_challenge(code_verifier)
+    state = secrets.token_urlsafe(32)
+    server, result, redirect_uri = _codex_bind_callback_server(state=state)
+    server.timeout = 0.25
+    auth_url = _codex_build_authorize_url(
+        redirect_uri=redirect_uri,
+        code_challenge=code_challenge,
+        state=state,
+    )
+
+    print("기본 브라우저에서 ChatGPT/Codex 로그인을 엽니다.")
+    try:
+        opened = bool(webbrowser.open(auth_url))
+    except Exception:
+        opened = False
+    if not opened:
+        print("브라우저를 자동으로 열지 못했습니다. 아래 주소를 직접 여세요:")
+        print(auth_url)
+    print("로그인 완료를 기다리는 중입니다… (Ctrl+C로 취소)")
+
+    deadline = time.monotonic() + max(5.0, float(timeout_seconds))
+    try:
+        while time.monotonic() < deadline:
+            server.handle_request()
+            if result["code"] or result["error"]:
+                break
+    except KeyboardInterrupt:
+        print("\n로그인을 취소했습니다.")
+        raise SystemExit(130)
+    finally:
+        server.server_close()
+
+    if result["error"]:
+        code = str(result["error"])
+        message = str(result.get("error_description") or code)
+        raise AuthError(
+            f"Codex browser login failed: {message}",
+            provider="openai-codex",
+            code=f"codex_callback_{code}",
+        )
+    authorization_code = str(result["code"] or "").strip()
+    if not authorization_code:
+        raise AuthError(
+            "Codex browser login timed out waiting for the local callback.",
+            provider="openai-codex",
+            code="codex_callback_timeout",
+        )
+    return _codex_exchange_browser_code(
+        code=authorization_code,
+        redirect_uri=redirect_uri,
+        code_verifier=code_verifier,
+    )
+
+
+def _codex_login_for_environment() -> Dict[str, Any]:
+    """Prefer normal browser OAuth; reserve device codes for remote/headless use."""
+    if _is_remote_session() or not _can_open_graphical_browser():
+        print("원격 또는 헤드리스 환경이므로 Device Code 로그인을 사용합니다.")
+        return _codex_device_code_login()
+    try:
+        return _codex_browser_login()
+    except AuthError as exc:
+        if getattr(exc, "code", "") != "codex_callback_bind_failed":
+            raise
+        print("로컬 콜백 포트를 사용할 수 없어 Device Code로 전환합니다.")
+        return _codex_device_code_login()
+
+
+def reuse_codex_login_if_available() -> bool:
+    """Reuse Bithumb or official Codex credentials before opening a login UI."""
+    try:
+        existing = resolve_codex_runtime_credentials()
+        access_token = str(existing.get("api_key") or "").strip()
+        if access_token and not _codex_access_token_is_expiring(access_token, 60):
+            print("기존 Bithumb Agent ChatGPT/Codex 로그인을 사용합니다.")
+            return True
+    except AuthError:
+        pass
+
+    imported = _import_codex_cli_tokens()
+    if imported:
+        _save_codex_tokens(imported)
+        print("기존 OpenAI Codex 로그인을 Bithumb Agent에서 재사용합니다.")
+        return True
+    return False
+
+
 def _codex_device_code_login() -> Dict[str, Any]:
     """Run the OpenAI device code login flow and return credentials dict."""
     import time as _time
 
-    issuer = "https://auth.openai.com"
+    issuer = CODEX_OAUTH_ISSUER
     client_id = CODEX_OAUTH_CLIENT_ID
 
     # Step 1: Request device code. OpenAI's auth endpoint rate-limits this

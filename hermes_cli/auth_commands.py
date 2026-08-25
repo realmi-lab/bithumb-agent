@@ -14,6 +14,7 @@ from agent.credential_pool import (
     CUSTOM_POOL_PREFIX,
     SOURCE_MANUAL,
     SOURCE_MANUAL_DEVICE_CODE,
+    SOURCE_MANUAL_LOOPBACK_PKCE,
     STATUS_EXHAUSTED,
     STRATEGY_FILL_FIRST,
     STRATEGY_ROUND_ROBIN,
@@ -350,7 +351,7 @@ def auth_add_command(args) -> None:
         return
 
     if provider == "openai-codex":
-        creds = auth_mod._codex_device_code_login()
+        creds = auth_mod._codex_login_for_environment()
         label = (getattr(args, "label", None) or "").strip() or label_from_token(
             creds["tokens"]["access_token"],
             _oauth_default_label(provider, len(pool.entries()) + 1),
@@ -371,7 +372,11 @@ def auth_add_command(args) -> None:
             label=label,
             auth_type=AUTH_TYPE_OAUTH,
             priority=0,
-            source=SOURCE_MANUAL_DEVICE_CODE,
+            source=(
+                SOURCE_MANUAL_DEVICE_CODE
+                if creds.get("source") == "device-code"
+                else SOURCE_MANUAL_LOOPBACK_PKCE
+            ),
             access_token=creds["tokens"]["access_token"],
             refresh_token=creds["tokens"].get("refresh_token"),
             base_url=creds.get("base_url"),

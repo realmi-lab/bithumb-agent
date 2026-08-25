@@ -57,15 +57,16 @@ def _normalize_bit_target(command: str) -> str | None:
 def connect_bit_provider(provider: str) -> str:
     """Run the reviewed OAuth flow and select the connected provider."""
     from hermes_cli.auth_commands import auth_add_command
+    from hermes_cli import auth as auth_mod
 
-    auth_add_command(
-        SimpleNamespace(provider=provider, auth_type="oauth", label=None)
-    )
+    reused = provider == "openai-codex" and auth_mod.reuse_codex_login_if_available()
+    if not reused:
+        auth_add_command(
+            SimpleNamespace(provider=provider, auth_type="oauth", label=None)
+        )
 
     # ``auth add`` preserves an existing selection for multi-account users.
     # A direct `/bit` request is an explicit selection, so make it active.
-    from hermes_cli import auth as auth_mod
-
     if provider == "openai-codex":
         base_url = auth_mod.DEFAULT_CODEX_BASE_URL
         # Codex requires a concrete model name. Prefer the first model visible

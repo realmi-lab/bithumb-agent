@@ -102,6 +102,7 @@ AUTH_TYPE_API_KEY = "api_key"
 
 SOURCE_MANUAL = "manual"
 SOURCE_MANUAL_DEVICE_CODE = f"{SOURCE_MANUAL}:device_code"
+SOURCE_MANUAL_LOOPBACK_PKCE = f"{SOURCE_MANUAL}:loopback_pkce"
 
 STRATEGY_FILL_FIRST = "fill_first"
 STRATEGY_ROUND_ROBIN = "round_robin"

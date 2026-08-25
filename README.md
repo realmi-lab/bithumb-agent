@@ -21,7 +21,7 @@ Bithumb Agent는 [Hermes Agent](https://github.com/NousResearch/hermes-agent)의
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "git+https://github.com/realmi-lab/bithumb-agent.git@v0.19.0.post6"
+python -m pip install "git+https://github.com/realmi-lab/bithumb-agent.git@v0.19.0.post7"
 ```
 
 설치 후 실행합니다.
@@ -39,7 +39,11 @@ bithumb-agent
 /bit gemini
 ```
 
-- `/bit gpt`: ChatGPT/Codex OAuth 로그인 페이지를 기본 브라우저에서 엽니다.
+- `/bit gpt`: 기존 Bithumb Agent 또는 공식 Codex 로그인을 먼저 재사용하고,
+  없으면 ChatGPT/Codex OAuth 페이지를 기본 브라우저에서 엽니다. 공식 Codex
+  CLI를 별도로 설치하지 않아도 되며, 로그인한 ChatGPT 계정에 Codex 사용
+  권한이 있어야 합니다. SSH·헤드리스 환경에서는 Device Code 방식으로
+  자동 전환합니다.
 - `/bit gemini`: 공식 Google Antigravity CLI를 열어 Google OAuth 로그인을 진행합니다.
 - `/bit status`: 두 로그인 상태를 확인합니다.
 
