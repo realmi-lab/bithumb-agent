@@ -95,19 +95,25 @@ def connect_bit_provider(provider: str) -> str:
 
 
 def show_bit_status(*, emit: Callable[[str], None] = print) -> None:
-    from hermes_cli.auth import get_auth_status
+    """Show OAuth readiness without spawning Antigravity or opening a UI."""
+    from hermes_cli.auth import get_codex_auth_status
+    from hermes_cli.antigravity import resolve_antigravity_executable
 
-    labels = (
-        ("GPT", "openai-codex"),
-        ("Gemini", "antigravity-cli"),
-    )
-    for label, provider in labels:
-        try:
-            ready = bool(get_auth_status(provider).get("logged_in"))
-        except Exception:
-            ready = False
-        state = "로그인됨" if ready else "로그아웃"
-        emit(f"  {label:<7} {state}")
+    try:
+        codex_ready = bool(get_codex_auth_status().get("logged_in"))
+    except Exception:
+        codex_ready = False
+    try:
+        antigravity_installed = bool(resolve_antigravity_executable())
+    except Exception:
+        antigravity_installed = False
+
+    emit(f"  {'GPT':<7} {'로그인됨' if codex_ready else '로그아웃'}")
+    # Antigravity keeps OAuth in the operating-system keyring.  Reading its
+    # exact login state requires launching the vendor CLI, so status reports
+    # installation only and leaves login to the explicit /bit gemini action.
+    agy_state = "CLI 설치됨 · 로그인 확인은 /bit gemini" if antigravity_installed else "CLI 미설치"
+    emit(f"  {'Gemini':<7} {agy_state}")
 
 
 def handle_bit_command(

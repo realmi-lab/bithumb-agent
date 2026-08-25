@@ -252,6 +252,14 @@ def test_reviewed_cli_commands_remain_available():
         assert validate_cli_argv(argv) is None
 
 
+def test_status_command_is_detected_after_global_options():
+    from hermes_cli.bithumb_agent_policy import extract_cli_command
+
+    assert extract_cli_command(["status"]) == "status"
+    assert extract_cli_command(["--provider", "openai-codex", "status"]) == "status"
+    assert extract_cli_command(["--profile=work", "status"]) == "status"
+
+
 def test_integration_startup_is_permanently_disabled():
     from hermes_cli.bithumb_agent_policy import integration_startup_is_allowed
 
@@ -568,6 +576,76 @@ def test_cli_callback_installation_tolerates_removed_skills_tool(monkeypatch):
 
     monkeypatch.setattr(builtins, "__import__", guarded_import)
     assert cli.set_secret_capture_callback(lambda *_args: None) is None
+
+
+def test_conversation_loop_does_not_import_removed_skill_provenance():
+    """A clean wheel must reach the real chat loop without skill modules."""
+    project_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import agent.conversation_loop; "
+                "from tools.write_origin import ("
+                "get_current_write_origin, set_current_write_origin); "
+                "set_current_write_origin('assistant_tool'); "
+                "assert get_current_write_origin() == 'assistant_tool'; "
+                "print('ok')"
+            ),
+        ],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ok"
+
+
+def test_removed_skill_runtime_modules_have_no_production_imports():
+    """Prevent another clean-install crash from a stale removed-module import."""
+    project_root = Path(__file__).resolve().parents[1]
+    forbidden = ("tools.skill_provenance", "tools.managed_tool_gateway")
+    production_roots = (
+        project_root / "agent",
+        project_root / "tools",
+        project_root / "hermes_cli",
+        project_root / "cli.py",
+        project_root / "run_agent.py",
+    )
+    offenders = []
+    for root in production_roots:
+        paths = [root] if root.is_file() else root.rglob("*.py")
+        for path in paths:
+            source = path.read_text(encoding="utf-8")
+            for module in forbidden:
+                if f"from {module} import" in source or f"import {module}" in source:
+                    offenders.append(f"{path.relative_to(project_root)}: {module}")
+
+    assert offenders == []
+
+
+def test_bit_status_does_not_probe_or_launch_antigravity(monkeypatch):
+    import hermes_cli.auth as auth
+    import hermes_cli.antigravity as antigravity
+    from hermes_cli.bithumb_onboarding import show_bit_status
+
+    output = []
+    monkeypatch.setattr(auth, "get_codex_auth_status", lambda: {"logged_in": True})
+    monkeypatch.setattr(antigravity, "resolve_antigravity_executable", lambda: "/usr/bin/agy")
+    monkeypatch.setattr(
+        antigravity,
+        "probe_antigravity_login",
+        lambda *_args, **_kwargs: pytest.fail("status must not launch Antigravity"),
+    )
+
+    show_bit_status(emit=output.append)
+
+    assert any("GPT" in line and "로그인됨" in line for line in output)
+    assert any("Gemini" in line and "CLI 설치됨" in line for line in output)
 
 
 def test_startup_tips_do_not_advertise_removed_or_api_key_features():

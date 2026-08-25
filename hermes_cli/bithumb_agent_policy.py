@@ -155,6 +155,25 @@ def cli_command_is_allowed(name: Optional[str]) -> bool:
     return name in ALLOWED_CLI_COMMANDS
 
 
+def extract_cli_command(argv: Iterable[str]) -> Optional[str]:
+    """Return the first top-level command after reviewed global options."""
+
+    items = [str(value) for value in argv]
+    index = 0
+    while index < len(items):
+        item = items[index]
+        if item == "--":
+            return items[index + 1] if index + 1 < len(items) else None
+        if item.startswith("-"):
+            if "=" not in item and item in _CLI_VALUE_FLAGS and index + 1 < len(items):
+                index += 2
+            else:
+                index += 1
+            continue
+        return item
+    return None
+
+
 def validate_cli_argv(argv: Iterable[str]) -> Optional[str]:
     """Return a fail-closed error for a forbidden flag or command.
 
@@ -172,22 +191,7 @@ def validate_cli_argv(argv: Iterable[str]) -> Optional[str]:
         ):
             return f"Option {flag!r} is disabled by the Bithumb Agent coding-only security policy."
 
-    index = 0
-    while index < len(items):
-        item = items[index]
-        if item == "--":
-            command = items[index + 1] if index + 1 < len(items) else None
-            break
-        if item.startswith("-"):
-            if "=" not in item and item in _CLI_VALUE_FLAGS and index + 1 < len(items):
-                index += 2
-            else:
-                index += 1
-            continue
-        command = item
-        break
-    else:
-        command = None
+    command = extract_cli_command(items)
 
     if command == "help":
         return None

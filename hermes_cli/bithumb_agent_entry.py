@@ -15,7 +15,11 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from hermes_cli.bithumb_agent_policy import apply_runtime_lockdown, validate_cli_argv
+from hermes_cli.bithumb_agent_policy import (
+    apply_runtime_lockdown,
+    extract_cli_command,
+    validate_cli_argv,
+)
 
 
 _HELP = """\
@@ -52,6 +56,16 @@ def main() -> Any:
     if error:
         print(error, file=sys.stderr)
         return 2
+
+    # The upstream status screen enumerates disabled API-key providers,
+    # gateways, MCP, and other integrations.  It also probes Antigravity by
+    # launching a subprocess, which can hang or reopen its Google login UI.
+    # Bithumb Agent exposes a two-provider, read-only status instead.
+    if extract_cli_command(sys.argv[1:]) == "status":
+        from hermes_cli.bithumb_onboarding import show_bit_status
+
+        show_bit_status()
+        return 0
 
     from hermes_cli.main import main as upstream_main
 

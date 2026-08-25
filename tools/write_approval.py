@@ -207,13 +207,13 @@ def pending_count(subsystem: str) -> int:
 def current_origin() -> str:
     """Return the active write origin: ``foreground`` or ``background_review``.
 
-    Reuses the skill-provenance ContextVar, which the background review fork
-    already sets (see ``agent.background_review`` /
+    Reuses Bithumb Agent's small, integration-free ContextVar, which the
+    background review fork already sets (see ``agent.background_review`` /
     ``AIAgent._spawn_background_review``). Foreground agent turns leave it at
     the default ``foreground``.
     """
     try:
-        from tools.skill_provenance import get_current_write_origin
+        from tools.write_origin import get_current_write_origin
         return get_current_write_origin()
     except Exception:
         return "foreground"
