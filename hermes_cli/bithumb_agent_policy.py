@@ -28,11 +28,13 @@ ALLOWED_PROVIDER_SET = frozenset(ALLOWED_PROVIDERS)
 # handlers that a Bithumb Agent model may see or invoke.  Terminal commands retain
 # Hermes' normal approval/sandbox controls; unrelated network-capable tools
 # such as web search, browser automation, TTS, image generation, messaging,
-# cron, delegation, skills, memory, and computer use are excluded.
+# cron, delegation, dynamic skills, memory, and computer use are excluded.
+# The only skill surface is a fixed package-local, read-only coding catalog.
 ALLOWED_TOOLSETS: tuple[str, ...] = (
     "terminal",
     "file",
     "code_execution",
+    "skills",
     "todo",
     "clarify",
 )
@@ -46,6 +48,8 @@ ALLOWED_TOOL_NAMES = frozenset(
         "patch",
         "search_files",
         "execute_code",
+        "skills_list",
+        "skill_view",
         "todo",
         "clarify",
     }
@@ -56,6 +60,7 @@ ALLOWED_BUILTIN_TOOL_MODULES = frozenset(
         "tools.process_registry",
         "tools.file_tools",
         "tools.code_execution_tool",
+        "tools.bithumb_skills_tool",
         "tools.todo_tool",
         "tools.clarify_tool",
     }

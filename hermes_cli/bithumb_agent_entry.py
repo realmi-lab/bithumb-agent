@@ -40,9 +40,10 @@ Usage:
   bithumb-agent completion [shell]      Generate shell completion
   bithumb-agent version                 Show version
 
-Only terminal, file, local code execution, todo, and clarification tools are
-available. Plugins, MCP, browser/web, media, messaging, cron, delegation,
-computer control, shell hooks, and approval-bypass modes are disabled.
+Only terminal, file, local code execution, todo, clarification, and six
+package-local read-only coding skills are available. Plugins, MCP, browser/web,
+media, messaging, cron, delegation, dynamic skills, computer control, shell
+hooks, and approval-bypass modes are disabled.
 """
 
 

@@ -961,20 +961,9 @@ def set_approval_callback(*args, **kwargs):
 
 
 def set_secret_capture_callback(*args, **kwargs):
-    """Register the skill-secret callback when the optional skill tool exists.
-
-    Bithumb Agent's coding-only wheel deliberately does not distribute
-    ``tools.skills_tool``.  Callback installation is part of every normal CLI
-    startup, so importing that removed module here made an otherwise healthy
-    wheel crash immediately after drawing the banner.
-    """
-    try:
-        from tools.skills_tool import (
-            set_secret_capture_callback as _set_secret_capture_callback,
-        )
-    except ImportError:
-        return None
-    return _set_secret_capture_callback(*args, **kwargs)
+    """Compatibility no-op: bundled read-only skills never capture secrets."""
+    del args, kwargs
+    return None
 
 
 def _cleanup_all_browsers(*args, **kwargs):
@@ -3623,11 +3612,10 @@ _skill_bundles = None
 
 
 def _ensure_skill_commands() -> dict:
+    """Return no dynamic slash skills in the Bithumb Agent distribution."""
     global _skill_commands
     if _skill_commands is None:
-        from agent.skill_commands import scan_skill_commands
-
-        _skill_commands = scan_skill_commands()
+        _skill_commands = {}
     return _skill_commands
 
 
@@ -10543,82 +10531,11 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin, CLIBillingMixin):
             print(f"  ❌ MCP reload failed: {e}")
 
     def _reload_skills(self) -> None:
-        """Reload skills: rescan ~/.hermes/skills/ and queue a note for the
-        next user turn.
-
-        Skills don't need to live in the system prompt for the model to use
-        them (they're invoked via ``/skill-name``, ``skills_list``, or
-        ``skill_view`` at runtime), so this does NOT clear the prompt cache.
-        It rescans the slash-command map, prints the diff for the user, and
-        — if any skills were added or removed — queues a one-shot note that
-        gets prepended to the next user message. This preserves message
-        alternation (no phantom user turn injected out of band) and keeps
-        prompt caching intact.
-        """
-        try:
-            from agent.skill_commands import reload_skills, get_skill_commands
-
-            if not self._command_running:
-                print("🔄 Reloading skills...")
-
-            result = reload_skills()
-
-            # Sync cli.py's module-level _skill_commands so all consumers
-            # (help display, command dispatch, Tab-completion lambda) see the
-            # updated dict without needing to restart the session.
-            global _skill_commands
-            _skill_commands = get_skill_commands()
-            added = result.get("added", [])      # [{"name", "description"}, ...]
-            removed = result.get("removed", [])  # [{"name", "description"}, ...]
-            total = result.get("total", 0)
-
-            if not added and not removed:
-                print("  No new skills detected.")
-                print(f"  📚 {total} skill(s) available")
-                return
-
-            def _fmt_line(item: dict) -> str:
-                nm = item.get("name", "")
-                desc = item.get("description", "")
-                return f"    - {nm}: {desc}" if desc else f"    - {nm}"
-
-            if added:
-                print("  ➕ Added Skills:")
-                for item in added:
-                    print(f"  {_fmt_line(item)}")
-            if removed:
-                print("  ➖ Removed Skills:")
-                for item in removed:
-                    print(f"  {_fmt_line(item)}")
-            print(f"  📚 {total} skill(s) available")
-
-            # Queue a one-shot note for the NEXT user turn. The CLI's agent
-            # loop prepends ``_pending_skills_reload_note`` (if set) to the
-            # API-call-local message at ~L8770, then clears it — same
-            # pattern as ``_pending_model_switch_note``. Nothing is written
-            # to conversation_history here, so message alternation stays
-            # intact and no out-of-band user turn is persisted.
-            #
-            # Format matches how the system prompt renders pre-existing
-            # skills (``    - name: description``) so the model reads the
-            # diff in the same shape as its original skill catalog.
-            sections = ["[USER INITIATED SKILLS RELOAD:"]
-            if added:
-                sections.append("")
-                sections.append("Added Skills:")
-                for item in added:
-                    sections.append(_fmt_line(item))
-            if removed:
-                sections.append("")
-                sections.append("Removed Skills:")
-                for item in removed:
-                    sections.append(_fmt_line(item))
-            sections.append("")
-            sections.append("Use skills_list to see the updated catalog.]")
-            self._pending_skills_reload_note = "\n".join(sections)
-
-        except Exception as e:
-            print(f"  ❌ Skills reload failed: {e}")
+        """Explain that the package-local catalog is immutable."""
+        print(
+            "  Bithumb Agent의 내장 코딩 스킬은 패키지에 고정되어 있어 "
+            "다시 불러오거나 외부 스킬을 추가하지 않습니다."
+        )
 
     # ====================================================================
     # Tool-call generation indicator (shown during streaming)

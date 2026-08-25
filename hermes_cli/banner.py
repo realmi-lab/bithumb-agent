@@ -87,22 +87,15 @@ HERMES_CADUCEUS = BITHUMB_MONOGRAM
 # =========================================================================
 
 def get_available_skills() -> Dict[str, List[str]]:
-    """Return skills grouped by category, filtered by platform and disabled state.
-
-    Delegates to ``_find_all_skills()`` from ``tools/skills_tool`` which already
-    handles platform gating (``platforms:`` frontmatter) and respects the
-    user's ``skills.disabled`` config list.
-    """
+    """Return the immutable Bithumb Agent coding catalog by category."""
     try:
-        from tools.skills_tool import _find_all_skills
-        all_skills = _find_all_skills()  # already filtered
+        from hermes_cli.bithumb_skills import list_skill_metadata
     except Exception:
         return {}
 
     skills_by_category: Dict[str, List[str]] = {}
-    for skill in all_skills:
-        category = skill.get("category") or "general"
-        skills_by_category.setdefault(category, []).append(skill["name"])
+    for skill in list_skill_metadata():
+        skills_by_category.setdefault(skill.category, []).append(skill.name)
     return skills_by_category
 
 

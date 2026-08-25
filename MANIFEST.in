@@ -1,8 +1,11 @@
 graft locales
+graft hermes_cli/bithumb_skills
 include requirements.txt
 include SECURITY_REVIEW.md
 include CUSTOMIZATION.md
 prune tests
+# The upstream root skills directory remains excluded. Only the reviewed,
+# package-local hermes_cli/bithumb_skills resources are distributed.
 prune skills
 prune gateway
 prune cron

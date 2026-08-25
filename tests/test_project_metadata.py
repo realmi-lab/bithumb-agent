@@ -77,6 +77,8 @@ def test_bithumb_specific_modules_have_spdx_and_provenance_headers():
         "hermes_cli/bithumb_agent_entry.py",
         "hermes_cli/bithumb_agent_policy.py",
         "hermes_cli/bithumb_onboarding.py",
+        "hermes_cli/bithumb_skills/__init__.py",
+        "tools/bithumb_skills_tool.py",
     ):
         lines = (project_root / relative_path).read_text(encoding="utf-8").splitlines()
         assert lines[0] == "# SPDX-License-Identifier: MIT"

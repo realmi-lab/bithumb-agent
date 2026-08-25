@@ -189,6 +189,8 @@ def test_bithumb_agent_tool_policy_is_fail_closed():
         for entry in model_tools.get_tool_definitions(quiet_mode=True)
     }
     assert exposed <= ALLOWED_TOOL_NAMES
+    assert {"skills_list", "skill_view"} <= exposed
+    assert "skill_manage" not in exposed
     assert "web_search" not in exposed
     assert "browser_navigate" not in exposed
     assert "text_to_speech" not in exposed
@@ -608,7 +610,11 @@ def test_conversation_loop_does_not_import_removed_skill_provenance():
 def test_removed_skill_runtime_modules_have_no_production_imports():
     """Prevent another clean-install crash from a stale removed-module import."""
     project_root = Path(__file__).resolve().parents[1]
-    forbidden = ("tools.skill_provenance", "tools.managed_tool_gateway")
+    forbidden = (
+        "tools.skill_provenance",
+        "tools.managed_tool_gateway",
+        "tools.tool_search",
+    )
     production_roots = (
         project_root / "agent",
         project_root / "tools",

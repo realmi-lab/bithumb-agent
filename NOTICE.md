@@ -15,9 +15,10 @@ The modifications include the `bithumb-agent` package and command name, orange
 CLI identity, Bithumb onboarding and `/bit` commands, OAuth-only provider
 selection, standalone ChatGPT/Codex browser OAuth, Google Antigravity CLI
 integration, a restricted local coding-tool policy, removal or exclusion of
-managed gateway/skill-tool distribution paths, Python 3.14 compatibility, and
-packaging/security regression tests. A detailed change and provenance record is
-provided in `CUSTOMIZATION.md`.
+managed gateway and original dynamic skill-tool distribution paths, a fixed
+read-only catalog of six attributed coding-methodology skills, Python 3.14
+compatibility, and packaging/security regression tests. A detailed change and
+provenance record is provided in `CUSTOMIZATION.md`.
 
 Parts of the command-line experience are inspired by Google Antigravity. Google
 Antigravity source code is not claimed as part of this repository, and its

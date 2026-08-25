@@ -1,6 +1,6 @@
 # Bithumb Agent security-review status
 
-Reviewed: 2026-08-24 (Asia/Seoul)
+Reviewed: 2026-08-25 (Asia/Seoul)
 
 ## Executive verdict
 
@@ -32,9 +32,10 @@ Local tools visible to or callable by the outer Bithumb Agent agent:
 - `terminal`, `process`
 - `read_file`, `write_file`, `patch`, `search_files`
 - `execute_code`
+- `skills_list`, `skill_view` for six exact package-local text resources
 - `todo`, `clarify`
 
-The tool registry imports only the five reviewed coding modules plus the local
+The tool registry imports only the six reviewed coding modules plus the local
 process registry. A direct dispatch of another registered name is denied before
 plugin hooks, middleware, bridge handling, or execution.
 
@@ -47,13 +48,23 @@ Disabled startup surfaces:
 - background version/update checks
 - upstream dashboard, tools configurator, doctor, and TUI command surfaces
 - approval-bypass oneshot and `--yolo` modes
-- bundled skills at model runtime
+- user, profile, project, plugin, and externally installed skills at model runtime
 - web search, browser automation, vision, image/video generation, TTS, memory,
   session search, delegation, cron, computer use, smart-home, music, and
   messaging toolsets
 
 `~/.hermes/config.yaml` is an explicit allow-list and contains `no_mcp`, an
 empty plugin allow-list, and an empty MCP map.
+
+## Bundled coding-skill boundary
+
+The six bundled coding skills are static Markdown methodology documents shipped
+inside `hermes_cli.bithumb_skills`. Names are resolved through an exact
+allow-list. The runtime does not scan home, project, plugin, or caller-supplied
+paths and does not expose skill installation, mutation, download, secret
+capture, environment passthrough, or shell preprocessing. The documents add
+model guidance but no new execution primitive; any resulting file or terminal
+action still passes through the existing Bithumb Agent tool policy.
 
 ## Antigravity subprocess controls
 

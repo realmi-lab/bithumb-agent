@@ -1537,51 +1537,18 @@ class CLICommandsMixin:
             print(output)
 
     def _handle_skills_command(self, cmd: str):
-        """Handle /skills slash command — delegates to hermes_cli.skills_hub."""
-        from cli import ChatConsole
-        # Intercept write-approval review subcommands first (pending/approve/
-        # reject/diff/mode); everything else goes to the skills hub.
-        parts = cmd.strip().split()
-        args = parts[1:] if len(parts) > 1 else []
-        if args and args[0].lower() in {"pending", "approve", "apply", "reject",
-                                        "deny", "drop", "diff", "approval", "mode"}:
-            from hermes_cli.write_approval_commands import handle_pending_subcommand
-            from tools import write_approval as wa
-            out = handle_pending_subcommand(
-                wa.SKILLS, args,
-                set_mode_fn=lambda enabled: self._save_write_approval("skills", enabled),
-            )
-            if out is not None:
-                print(out)
-                return
-        from hermes_cli.skills_hub import handle_skills_slash
-        handle_skills_slash(cmd, ChatConsole())
+        """Show or read the fixed Bithumb Agent coding-skill catalog."""
+        from tools.bithumb_skills_tool import format_skills_cli
+
+        print(format_skills_cli(cmd))
 
     def _handle_learn_command(self, cmd: str):
-        """Handle /learn — distill a reusable skill from anything the user describes.
-
-        Open-ended: the argument is free text describing the source(s) — a
-        directory, a URL, "what we just did", pasted notes. We build a
-        standards-guided prompt and inject it onto the agent's input queue; the
-        live agent gathers the material with the tools it already has and
-        authors the skill via ``skill_manage``. No engine, no model-tool
-        footprint, works on any terminal backend.
-        """
-        from agent.learn_prompt import build_learn_prompt
-
-        # Everything after the command word is the open-ended request.
-        parts = cmd.strip().split(None, 1)
-        user_request = parts[1].strip() if len(parts) > 1 else ""
-
-        msg = build_learn_prompt(user_request)
-        if user_request:
-            print("\n⚡ Learning a skill from what you described...")
-        else:
-            print("\n⚡ Learning a skill from this conversation...")
-        if hasattr(self, "_pending_input"):
-            self._pending_input.put(msg)
-        else:  # pragma: no cover - defensive (no live input loop)
-            print("  /learn needs an active chat session to run.")
+        """Reject dynamic skill authoring in the read-only distribution."""
+        del cmd
+        print(
+            "  Bithumb Agent의 코딩 스킬은 읽기 전용입니다. "
+            "/skills에서 검수된 내장 목록을 확인하세요."
+        )
 
     def _handle_memory_command(self, cmd: str):
         """Handle /memory slash command — pending review + approval-gate toggle."""

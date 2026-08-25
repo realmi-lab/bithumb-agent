@@ -49,14 +49,28 @@ The customization consists of the following reviewed changes:
 
 4. **Reduced execution surface**
    - Limited exposed agent tools to terminal/process, local file operations,
-     local code execution, todo, and clarification functions.
+     local code execution, todo, clarification, and exact-name reads from a
+     fixed catalog of six bundled coding methodology documents.
    - Disabled plugins, MCP servers, web/browser automation, media generation,
      messaging, cron, delegation, computer control, shell hooks, and approval
      bypass modes in the Bithumb Agent command and runtime policy.
-   - Excluded the removed managed gateway and skill-tool modules from the
-     published distribution.
+   - Excluded the managed gateway and original dynamic skill-tool modules from
+     the published distribution. The replacement catalog does not scan user or
+     external directories and has no install, edit, secret-capture, credential,
+     plugin, network, or shell-preprocessing path.
 
-5. **Packaging and compatibility**
+5. **Reviewed read-only coding skills**
+   - Adapted six MIT-licensed upstream methodology documents into concise,
+     Bithumb-specific read-only resources: `systematic-debugging`,
+     `test-driven-development`, `plan`, `simplify-code`,
+     `requesting-code-review`, and `spike`.
+   - Preserved attribution inside every document. The adaptations originate
+     from Hermes Agent skills, with their documented influences including
+     obra/superpowers, MorAlekss, and gsd-build/get-shit-done.
+   - Added only `skills_list` and `skill_view`. Skill authoring, management,
+     downloading, arbitrary path reads, and runtime extension are absent.
+
+6. **Packaging and compatibility**
    - Added the `bithumb-agent` Python package metadata and console entry point.
    - Declared and pinned runtime dependencies, included the license/notice
      documents in built distributions, and verified Python 3.14 installation.
@@ -75,9 +89,11 @@ product name, which is Bithumb Agent.
 Some dormant upstream files remain in the source repository for maintenance and
 comparison but are blocked by the Bithumb Agent runtime policy. The published
 wheel is additionally audited to exclude the specifically removed managed
-gateway and skill-tool modules. See [SECURITY_REVIEW.md](SECURITY_REVIEW.md) for
-the security boundary; this document records provenance and modifications, not
-a claim that every inherited source file was rewritten.
+gateway and original dynamic skill-tool modules. The six replacement Markdown
+resources are static instructions rather than executable extensions. See
+[SECURITY_REVIEW.md](SECURITY_REVIEW.md) for the security boundary; this
+document records provenance and modifications, not a claim that every inherited
+source file was rewritten.
 
 ## 4. Google Antigravity clarification
 

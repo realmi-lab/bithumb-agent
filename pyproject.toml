@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bithumb-agent"
-version = "0.19.0.post9"
+version = "0.19.0.post10"
 description = "Bithumb-oriented, OAuth-only open-source coding agent derived from Hermes Agent"
 readme = "README.md"
 # Python 3.14 is supported. The exact-pinned native dependencies used by the
@@ -126,8 +126,11 @@ py-modules = ["run_agent", "model_tools", "toolsets", "cli", "hermes_bootstrap",
 # venv) drop the catalogs and gateway/CLI commands surface raw i18n keys like
 # `gateway.reset.header_default` (#27632, #35374, #23943).
 locales = ["locales/*.yaml"]
-# Optional MCP and skill catalogs are intentionally absent from this
-# coding-only distribution and therefore are not included as wheel data.
+# Optional MCP and dynamic skill catalogs are intentionally absent from this
+# coding-only distribution.
+
+[tool.setuptools.package-data]
+"hermes_cli.bithumb_skills" = ["*.md"]
 
 [tool.setuptools.packages.find]
 include = ["agent", "agent.*", "tools", "tools.*", "hermes_cli", "hermes_cli.*", "providers", "providers.*"]
