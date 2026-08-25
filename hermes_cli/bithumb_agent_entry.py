@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: MIT
+# Derived from Hermes Agent (Copyright (c) 2025 Nous Research) and customized
+# for the independent Bithumb Agent distribution. See LICENSE and NOTICE.md.
+
 """Security-first console entry point for Bithumb Agent.
 
 The generated console shim imports this tiny module before the upstream CLI.

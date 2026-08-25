@@ -21,7 +21,7 @@ Bithumb Agent는 [Hermes Agent](https://github.com/NousResearch/hermes-agent)의
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "git+https://github.com/realmi-lab/bithumb-agent.git@v0.19.0.post7"
+python -m pip install "git+https://github.com/realmi-lab/bithumb-agent.git@v0.19.0.post8"
 ```
 
 설치 후 실행합니다.
@@ -92,6 +92,21 @@ Git/PyPI 설치에서는 pip가 `pyproject.toml`을 읽으므로 별도로 실�
 
 기업 또는 금융권 검토 전에는 [SECURITY_REVIEW.md](SECURITY_REVIEW.md)를 확인하세요. 저장소에는 비활성화된 Hermes 상류 구현 일부가 남아 있으며, 외부 `agy` 바이너리의 기능은 물리적으로 제거하는 대신 런타임에서 제한합니다.
 
-## 오픈소스와 라이선스
+## 오픈소스 출처와 변경 내역
 
-Bithumb Agent는 Nous Research의 Hermes Agent를 기반으로 하며 원 프로젝트의 MIT 라이선스와 저작권 고지를 유지합니다. 자세한 출처와 변경 고지는 [NOTICE.md](NOTICE.md), 라이선스 전문은 [LICENSE](LICENSE)를 확인하세요.
+Bithumb Agent는 Nous Research의 Hermes Agent를 기반으로 만든 수정 배포판입니다.
+원 프로젝트의 MIT 라이선스 전문과 `Copyright (c) 2025 Nous Research`
+고지를 삭제하거나 Bithumb 명의로 대체하지 않고 그대로 유지합니다. 빗썸용
+수정 부분도 동일한 MIT 라이선스로 배포합니다.
+
+Hermes Agent에서 Bithumb Agent로 변경한 내용은 다음과 같습니다.
+
+- 배포 패키지와 실행 명령을 `bithumb-agent`로 변경
+- 오렌지 CLI·초기 화면·`/bit` 로그인 명령 추가
+- ChatGPT/Codex 및 Google Antigravity OAuth만 노출
+- 로컬 코딩 도구만 허용하고 플러그인·MCP·웹·메시징·cron·위임 기능 차단
+- 관리형 gateway와 skill-tool 배포 경로 제거
+- Python 3.14 설치 지원과 의존성·보안·패키징 회귀 테스트 추가
+
+상세한 파일·기능별 변경 및 파생 관계는 [CUSTOMIZATION.md](CUSTOMIZATION.md),
+배포 고지는 [NOTICE.md](NOTICE.md), MIT 전문은 [LICENSE](LICENSE)를 확인하세요.

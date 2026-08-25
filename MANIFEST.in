@@ -1,6 +1,7 @@
 graft locales
 include requirements.txt
 include SECURITY_REVIEW.md
+include CUSTOMIZATION.md
 prune tests
 prune skills
 prune gateway

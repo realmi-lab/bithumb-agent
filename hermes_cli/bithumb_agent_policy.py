@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: MIT
+# Derived from Hermes Agent (Copyright (c) 2025 Nous Research) and customized
+# for the independent Bithumb Agent distribution. See LICENSE and NOTICE.md.
+
 """Bithumb Agent's locked-down OAuth and local-tool policy.
 
 The upstream Hermes source supports many inference backends and integrations.

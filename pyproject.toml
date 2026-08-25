@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bithumb-agent"
-version = "0.19.0.post7"
+version = "0.19.0.post8"
 description = "Bithumb-oriented, OAuth-only open-source coding agent derived from Hermes Agent"
 readme = "README.md"
 # Python 3.14 is supported. The exact-pinned native dependencies used by the
@@ -19,7 +19,7 @@ authors = [
 ]
 maintainers = [{ name = "Ilhong Kim", email = "ilhong.kim@bithumbcorp.com" }]
 license = "MIT"
-license-files = ["LICENSE", "NOTICE.md"]
+license-files = ["LICENSE", "NOTICE.md", "CUSTOMIZATION.md"]
 dependencies = [
   # Core — every direct dep is exact-pinned to ==X.Y.Z (no ranges).
   # Rationale: ranges allow PyPI to ship a fresh version of a transitive
