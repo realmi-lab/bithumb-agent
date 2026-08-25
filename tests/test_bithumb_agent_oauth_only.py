@@ -540,6 +540,75 @@ def test_explicit_ca_is_added_to_system_truststore(monkeypatch, tmp_path):
     assert context.loaded_cafile == str(ca_bundle)
 
 
+def test_gpt_runtime_verify_uses_system_truststore(monkeypatch):
+    import ssl
+    import sys
+    from types import SimpleNamespace
+
+    from agent import ssl_verify
+
+    system_context = object()
+
+    def fake_ssl_context(protocol):
+        assert protocol == ssl.PROTOCOL_TLS_CLIENT
+        return system_context
+
+    monkeypatch.setitem(
+        sys.modules,
+        "truststore",
+        SimpleNamespace(SSLContext=fake_ssl_context),
+    )
+
+    assert ssl_verify.resolve_httpx_verify() is system_context
+
+
+def test_openai_gpt_client_receives_system_trust_context(monkeypatch):
+    from types import SimpleNamespace
+
+    import run_agent
+    from agent import agent_runtime_helpers, ssl_verify
+
+    system_context = object()
+    http_client = object()
+    captured = {}
+
+    monkeypatch.setattr(
+        ssl_verify,
+        "resolve_httpx_verify",
+        lambda **kwargs: system_context,
+    )
+
+    def fake_openai(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(run_agent, "OpenAI", fake_openai)
+
+    def build_http_client(base_url, *, verify):
+        captured["transport_base_url"] = base_url
+        captured["transport_verify"] = verify
+        return http_client
+
+    agent = SimpleNamespace(
+        provider="openai-codex",
+        _build_keepalive_http_client=build_http_client,
+        _client_log_context=lambda: "test",
+    )
+    agent_runtime_helpers.create_openai_client(
+        agent,
+        {
+            "api_key": "private-test-token",
+            "base_url": "https://chatgpt.com/backend-api/codex",
+        },
+        reason="test",
+        shared=True,
+    )
+
+    assert captured["transport_verify"] is system_context
+    assert captured["http_client"] is http_client
+    assert captured["max_retries"] == 0
+
+
 def test_codex_browser_login_completes_through_local_callback(monkeypatch):
     import hermes_cli.auth as auth
 

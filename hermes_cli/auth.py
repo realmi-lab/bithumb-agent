@@ -4651,21 +4651,9 @@ def _default_verify() -> bool | ssl.SSLContext:
     A certifi fallback keeps source checkouts usable if dependencies have not
     been installed yet.
     """
-    try:
-        import truststore
+    from agent.ssl_verify import build_system_trust_context
 
-        return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    except (ImportError, OSError) as exc:
-        logger.warning(
-            "System trust store is unavailable (%s); using certifi instead",
-            exc,
-        )
-        try:
-            import certifi
-
-            return ssl.create_default_context(cafile=certifi.where())
-        except ImportError:
-            return ssl.create_default_context()
+    return build_system_trust_context()
 
 
 def _resolve_verify(

@@ -11,6 +11,30 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
+def build_system_trust_context() -> ssl.SSLContext:
+    """Build a validating SSL context backed by the operating-system roots.
+
+    ``truststore`` reads enterprise roots installed in Windows CryptoAPI,
+    macOS Keychain, and Linux's OpenSSL trust paths.  Falling back to certifi
+    keeps source checkouts functional before project dependencies are installed.
+    """
+    try:
+        import truststore
+
+        return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    except (ImportError, OSError) as exc:
+        logger.warning(
+            "System trust store is unavailable (%s); using certifi instead",
+            exc,
+        )
+        try:
+            import certifi
+
+            return ssl.create_default_context(cafile=certifi.where())
+        except ImportError:
+            return ssl.create_default_context()
+
+
 def _coerce_insecure(ssl_verify: Any) -> bool:
     if ssl_verify is False:
         return True
@@ -32,7 +56,7 @@ def resolve_httpx_verify(
     2. explicit ``ca_bundle`` (per-provider ``ssl_ca_cert`` config field)
     3. ``HERMES_CA_BUNDLE``, ``SSL_CERT_FILE``, ``REQUESTS_CA_BUNDLE``,
        ``CURL_CA_BUNDLE`` env vars
-    4. ``True`` (httpx/certifi default)
+    4. the operating-system trust store via ``truststore``
 
     ``base_url`` is used only for the insecure-mode warning message.
     """
@@ -55,9 +79,12 @@ def resolve_httpx_verify(
     if effective_ca:
         ca_path = str(Path(effective_ca).expanduser())
         if os.path.isfile(ca_path):
-            return ssl.create_default_context(cafile=ca_path)
+            context = build_system_trust_context()
+            # Add the explicit enterprise CA without discarding OS roots.
+            context.load_verify_locations(cafile=ca_path)
+            return context
         logger.warning(
             "CA bundle path does not exist: %s — falling back to default certificates",
             effective_ca,
         )
-    return True
+    return build_system_trust_context()
