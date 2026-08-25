@@ -477,7 +477,9 @@ def test_codex_browser_exchange_uses_pkce_and_keeps_tokens_private(monkeypatch):
         captured.update(kwargs)
         return Response()
 
+    system_trust = object()
     monkeypatch.setattr(auth.httpx, "post", fake_post)
+    monkeypatch.setattr(auth, "_resolve_verify", lambda: system_trust)
     creds = auth._codex_exchange_browser_code(
         code="authorization-secret",
         redirect_uri="http://localhost:1455/auth/callback",
@@ -492,8 +494,50 @@ def test_codex_browser_exchange_uses_pkce_and_keeps_tokens_private(monkeypatch):
         "client_id": auth.CODEX_OAUTH_CLIENT_ID,
         "code_verifier": "verifier-secret",
     }
+    assert captured["verify"] is system_trust
     assert creds["source"] == "loopback-pkce"
     assert creds["tokens"]["access_token"] == "access-secret"
+
+
+def test_default_verify_uses_truststore_without_disabling_tls(monkeypatch):
+    import ssl
+    import sys
+    from types import SimpleNamespace
+
+    import hermes_cli.auth as auth
+
+    system_context = object()
+
+    def fake_ssl_context(protocol):
+        assert protocol == ssl.PROTOCOL_TLS_CLIENT
+        return system_context
+
+    monkeypatch.setitem(
+        sys.modules,
+        "truststore",
+        SimpleNamespace(SSLContext=fake_ssl_context),
+    )
+
+    assert auth._default_verify() is system_context
+
+
+def test_explicit_ca_is_added_to_system_truststore(monkeypatch, tmp_path):
+    import hermes_cli.auth as auth
+
+    ca_bundle = tmp_path / "enterprise-root.pem"
+    ca_bundle.write_text("test certificate placeholder", encoding="utf-8")
+
+    class SystemContext:
+        loaded_cafile = None
+
+        def load_verify_locations(self, *, cafile):
+            self.loaded_cafile = cafile
+
+    context = SystemContext()
+    monkeypatch.setattr(auth, "_default_verify", lambda: context)
+
+    assert auth._resolve_verify(ca_bundle=str(ca_bundle)) is context
+    assert context.loaded_cafile == str(ca_bundle)
 
 
 def test_codex_browser_login_completes_through_local_callback(monkeypatch):

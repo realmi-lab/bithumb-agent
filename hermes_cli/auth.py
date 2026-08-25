@@ -3598,6 +3598,7 @@ def refresh_codex_oauth_pure(
     timeout = httpx.Timeout(max(5.0, float(timeout_seconds)))
     with httpx.Client(
         timeout=timeout,
+        verify=_resolve_verify(),
         headers={
             "Accept": "application/json",
             "User-Agent": CODEX_OAUTH_USER_AGENT,
@@ -4642,21 +4643,29 @@ def resolve_xai_oauth_runtime_credentials(
 # =============================================================================
 
 def _default_verify() -> bool | ssl.SSLContext:
-    """Platform-aware default SSL verify for httpx clients.
+    """Return an SSL context backed by the operating-system trust store.
 
-    On macOS with Homebrew Python, the system OpenSSL cannot locate the
-    system trust store and valid public certs fail verification. When
-    certifi is importable we pin its bundle explicitly; elsewhere we
-    defer to httpx's built-in default (certifi via its own dependency).
-    Mirrors the weixin fix in 3a0ec1d93.
+    ``truststore`` reads Windows CryptoAPI, the macOS Security framework, or
+    the Linux OpenSSL trust paths.  This lets enterprise root CAs installed by
+    IT work for OAuth without disabling certificate or hostname validation.
+    A certifi fallback keeps source checkouts usable if dependencies have not
+    been installed yet.
     """
-    if sys.platform == "darwin":
+    try:
+        import truststore
+
+        return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    except (ImportError, OSError) as exc:
+        logger.warning(
+            "System trust store is unavailable (%s); using certifi instead",
+            exc,
+        )
         try:
             import certifi
+
             return ssl.create_default_context(cafile=certifi.where())
         except ImportError:
-            pass
-    return True
+            return ssl.create_default_context()
 
 
 def _resolve_verify(
@@ -4690,6 +4699,12 @@ def _resolve_verify(
                 ca_path,
             )
             return _default_verify()
+        context = _default_verify()
+        if hasattr(context, "load_verify_locations"):
+            # Keep the OS roots and add the explicitly configured enterprise
+            # CA instead of replacing the entire system trust store.
+            context.load_verify_locations(cafile=ca_path)
+            return context
         return ssl.create_default_context(cafile=ca_path)
     return _default_verify()
 
@@ -7613,17 +7628,18 @@ def _codex_exchange_browser_code(
                 "client_id": CODEX_OAUTH_CLIENT_ID,
                 "code_verifier": code_verifier,
             },
+            verify=_resolve_verify(),
             timeout=httpx.Timeout(20.0),
         )
     except Exception as exc:
         raise AuthError(
-            f"Codex token exchange failed: {exc}",
+            f"ChatGPT OAuth token exchange failed: {exc}",
             provider="openai-codex",
             code="token_exchange_failed",
         ) from exc
     if response.status_code != 200:
         raise AuthError(
-            f"Codex token exchange returned status {response.status_code}.",
+            f"ChatGPT OAuth token exchange returned status {response.status_code}.",
             provider="openai-codex",
             code="token_exchange_error",
         )
@@ -7632,7 +7648,7 @@ def _codex_exchange_browser_code(
     refresh_token = str(payload.get("refresh_token") or "").strip()
     if not access_token or not refresh_token:
         raise AuthError(
-            "Codex token exchange did not return access and refresh tokens.",
+            "ChatGPT OAuth token exchange did not return access and refresh tokens.",
             provider="openai-codex",
             code="token_exchange_incomplete",
         )
@@ -7748,6 +7764,7 @@ def _codex_device_code_login() -> Dict[str, Any]:
 
     issuer = CODEX_OAUTH_ISSUER
     client_id = CODEX_OAUTH_CLIENT_ID
+    verify = _resolve_verify()
 
     # Step 1: Request device code. OpenAI's auth endpoint rate-limits this
     # request (HTTP 429) when login is attempted too often from the same
@@ -7757,7 +7774,9 @@ def _codex_device_code_login() -> Dict[str, Any]:
     max_attempts = 4
     for attempt in range(1, max_attempts + 1):
         try:
-            with httpx.Client(timeout=httpx.Timeout(15.0)) as client:
+            with httpx.Client(
+                timeout=httpx.Timeout(15.0), verify=verify
+            ) as client:
                 resp = client.post(
                     f"{issuer}/api/accounts/deviceauth/usercode",
                     json={"client_id": client_id},
@@ -7843,7 +7862,7 @@ def _codex_device_code_login() -> Dict[str, Any]:
     code_resp = None
 
     try:
-        with httpx.Client(timeout=httpx.Timeout(15.0)) as client:
+        with httpx.Client(timeout=httpx.Timeout(15.0), verify=verify) as client:
             while _time.monotonic() - start < max_wait:
                 _time.sleep(poll_interval)
                 poll_resp = client.post(
@@ -7884,7 +7903,7 @@ def _codex_device_code_login() -> Dict[str, Any]:
         )
 
     try:
-        with httpx.Client(timeout=httpx.Timeout(15.0)) as client:
+        with httpx.Client(timeout=httpx.Timeout(15.0), verify=verify) as client:
             token_resp = client.post(
                 CODEX_OAUTH_TOKEN_URL,
                 data={
